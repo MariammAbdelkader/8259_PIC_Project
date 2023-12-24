@@ -36,6 +36,7 @@ module control (
     reg auto_eoi_config;
     reg   [10:0]  interrupt_vector_address;
     reg call_address_interval;
+    reg   [7:0]   cascade_config;
 
     reg cascade_slave;
 
@@ -229,6 +230,17 @@ module control (
             interrupt_vector_address[10:3] <= interrupt_vector_address[10:3];
     end
 
+    //
+    // ICW 3
+    //
+    always @* begin
+        if (reset || write_ICW1 == 1'b1)
+            cascade_config <= 8'b00000000;
+        else if (write_icw3 == 1'b1)
+            cascade_config <= data_bus;
+        else
+            cascade_config <= cascade_config;
+    end
 
     //
     //ICW 4 initialization
