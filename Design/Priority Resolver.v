@@ -31,10 +31,10 @@ module Priority_Resolver (
    //Rotating Interrupt Request 
   assign rotated_irr = (masked_irr >> priority_rotate)|(masked_irr <<(8-priority_rotate))& 8'hFF;
   // Rotate in_service 
-  always @* begin
-  assign rotated_isr= (masked_irr >> priority_rotate)|(masked_irr <<(8-priority_rotate))& 8'hFF;
+
+  assign rotated_isr= (masked_isr >> priority_rotate)|(masked_isr <<(8-priority_rotate))& 8'hFF;
     
-  end 
+
 
   // Priority mask calculation
   //based on the heighest prioity bit set in rotated_isr
