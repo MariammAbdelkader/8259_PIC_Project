@@ -22,6 +22,7 @@ module control (
     output [7:0] int_mask, //interrupt mask
     output [7:0] eoi, //end of interrupt
     output latch_in_service,
+    output  reg    level_edge_triggered,
     /*output read_reg_en, 
     output read_register_isr_or_irr,
 
@@ -33,6 +34,8 @@ module control (
     reg buff_mode_config;
     reg buff_master_or_slave_config;
     reg auto_eoi_config;
+    reg   [10:0]  interrupt_vector_address;
+    reg call_address_interval;
 
     reg cascade_slave;
 
@@ -157,8 +160,80 @@ module control (
     wire    end_of_poll_command = (control_state == POLL) & (control_state != CTRL_READY) & (next_control_state == CTRL_READY);
 
 
-    //...
+        //...
+    //
+    // ICW 1 initialization
+    //
+    
+    // A7-A5
+    always @* begin
+        if (reset)
+            interrupt_vector_address[2:0] <= 3'b000;
+        else if (write_ICW1 == 1'b1)
+            interrupt_vector_address[2:0] <= data_bus[7:5];
+        else
+            interrupt_vector_address[2:0] <= interrupt_vector_address[2:0];
+    end
 
+    // LTIM
+    always @* begin
+        if (reset)
+            level_edge_triggered <= 1'b0;
+        else if (write_ICW1 == 1'b1)
+            level_edge_triggered <= data_bus[3];
+        else
+            level_edge_triggered <= level_edge_triggered;
+    end
+
+    // ADI
+    //call address interval 4 or 8 configureation
+    always @* begin
+        if (reset)
+            call_address_interval <= 1'b0;
+        else if (write_ICW1 == 1'b1)
+            call_address_interval <= data_bus[2];
+        else
+            call_address_interval <= call_address_interval;
+    end
+
+    // SNGL
+    always @* begin
+        if (reset)
+            single_or_cascade <= 1'b0;
+        else if (write_ICW1 == 1'b1)
+            single_or_cascade <= data_bus[1];
+        else
+            single_or_cascade <= single_or_cascade;
+    end
+
+    //IC4
+    always @* begin
+        if (reset)
+            set_icw4 <= 1'b0;
+        else if (write_ICW1 == 1'b1)
+            set_icw4 <= data_bus[0];
+        else
+            set_icw4 <= set_icw4;
+    end
+
+    //
+    // ICW 2 initialization
+    //
+    // A15-A8 (MCS-80) or T7-T3 (8086, 8088)
+    always @* begin
+        if (reset || write_ICW1 == 1'b1)
+            interrupt_vector_address[10:3] <= 3'b000;
+        else if (write_icw2 == 1'b1)
+            interrupt_vector_address[10:3] <= data_bus;
+        else
+        //maintain current bits
+            interrupt_vector_address[10:3] <= interrupt_vector_address[10:3];
+    end
+
+
+    //
+    //ICW 4 initialization
+    //
     // BUF
     always @(*) begin
         if (reset || write_ICW1)
