@@ -15,6 +15,12 @@ module control (
     output out_control_logic_data,
     output [7:0] control_logic_data,
 
+    //signals from interrupt
+    input [7:0] highest_level_in_service,
+
+    //interrupt control signals
+    output [7:0] int_mask, //interrupt mask
+    output [7:0] eoi, //end of interrupt
     output latch_in_service,
     /*output read_reg_en, 
     output read_register_isr_or_irr,
@@ -26,6 +32,8 @@ module control (
     reg set_icw4;
 
     reg cascade_slave;
+
+    wire [7:0] acknowledge_interrupt;
 
     reg [1:0] command_state;
     reg [1:0] next_command_state;
@@ -140,8 +148,44 @@ module control (
     end
 
     // End of acknowledge sequence
-    wire    end_of_acknowledge_sequence =  (control_state != POLL) & (control_state != CTRL_READY) & (next_control_state == CTRL_READY);
-    wire    end_of_poll_command         =  (control_state == POLL) & (control_state != CTRL_READY) & (next_control_state == CTRL_READY);
+    wire    end_of_ack_seq =  (control_state != POLL) & (control_state != CTRL_READY) & (next_control_state == CTRL_READY);
+    wire    end_of_poll_command = (control_state == POLL) & (control_state != CTRL_READY) & (next_control_state == CTRL_READY);
 
+
+    //...
+
+
+    //Operation Control Word 1
+
+    always @(*) begin
+        if (reset)
+            int_mask <= 8'b11111111;
+        else if (write_initial_command_word_1 == 1'b1)
+            int_mask <= 8'b11111111;
+        else if (write_ocw1_reg == 1'b1)
+            int_mask <= data_bus;
+        else
+            int_mask <= int_mask;
+    end
+
+
+
+    //Operation Control Word 2
+    //incomplete & OCW3 missing
+    always @(*) begin
+        if (write_ICW1 == 1'b1)
+            eoi = 8'b11111111; 
+        else if (end_of_ack_seq == 1'b1)
+            eoi = acknowledge_interrupt;
+        else if (write_OCW2) begin
+            casez (data_bus[6:5])
+                2'b01:   eoi = highest_level_in_service; 
+                //2'b11:   eoi = num2bit(data_bus[2:0]);
+                default: eoi = 8'b00000000;
+            endcase
+        end
+        else
+            eoi = 8'b00000000;
+    end
 
 endmodule
