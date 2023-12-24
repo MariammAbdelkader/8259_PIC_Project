@@ -30,10 +30,15 @@ module control (
 );
     reg single_or_cascade;
     reg set_icw4;
+    reg buff_mode_config;
+    reg buff_master_or_slave_config;
+    reg auto_eoi_config;
 
     reg cascade_slave;
 
     wire [7:0] acknowledge_interrupt;
+
+
 
     reg [1:0] command_state;
     reg [1:0] next_command_state;
@@ -154,6 +159,31 @@ module control (
 
     //...
 
+    // BUF
+    always @(*) begin
+        if (reset || write_ICW1)
+            buff_mode_config <= 1'b0;
+        else if (write_icw4 == 1'b1)
+            buff_mode_config <= data_bus[3];
+    end
+
+    assign  SP_EN = ~buff_mode_config;
+
+    // M/S
+    always @(*) begin
+        if (reset || write_ICW1)
+            buff_master_or_slave_config <= 1'b0;
+        else if (write_icw4)
+            buff_master_or_slave_config <= data_bus[2];
+    end
+
+    // AEOI
+    always @(*) begin
+        if (reset || write_ICW1)
+            auto_eoi_config <= 1'b0;
+        else if (write_icw4)
+            auto_eoi_config <= internal_data_bus[1];
+    end
 
     //Operation Control Word 1
 
