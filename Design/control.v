@@ -219,7 +219,6 @@ module control (
     //
     // ICW 2 initialization
     //
-    // A15-A8 (MCS-80) or T7-T3 (8086, 8088)
     always @* begin
         if (reset || write_ICW1 == 1'b1)
             interrupt_vector_address[10:3] <= 3'b000;
