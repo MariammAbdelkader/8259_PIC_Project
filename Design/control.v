@@ -21,6 +21,7 @@ module control (
     //interrupt control signals
     output [7:0] int_mask, //interrupt mask
     output [7:0] eoi, //end of interrupt
+    output [2:0] priority_rotate,
     output latch_in_service,
     output  reg    level_edge_triggered,
     /*output read_reg_en, 
