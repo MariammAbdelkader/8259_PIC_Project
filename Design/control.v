@@ -34,6 +34,7 @@ module control (
     reg buff_mode_config;
     reg buff_master_or_slave_config;
     reg auto_eoi_config;
+    reg auto_rotate_mode;
     reg   [10:0]  interrupt_vector_address;
     reg call_address_interval;
     reg   [7:0]   cascade_config;
