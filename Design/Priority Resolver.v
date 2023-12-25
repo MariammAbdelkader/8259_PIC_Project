@@ -31,7 +31,6 @@ module Priority_Resolver (
    //Rotating Interrupt Request 
   assign rotated_irr = (masked_irr >> priority_rotate)|(masked_irr <<(8-priority_rotate))& 8'hFF;
   // Rotate in_service 
-
   assign rotated_isr= (masked_isr >> priority_rotate)|(masked_isr <<(8-priority_rotate))& 8'hFF;
     
 
@@ -48,9 +47,23 @@ module Priority_Resolver (
                          ( rotated_isr[7]) ? 8'b01111111 :
                                              8'b11111111;
 
-  assign rotated_interrupt = (~rotated_irr&(rotated_irr+1)) & priority_mask;
+  assign rotated_interrupt = resolv_priority(rotated_irr) & priority_mask;
 // final interrupt vector after de-rotation
   assign interrupt_vector = (rotated_interrupt << priority_rotate)|(rotated_interrupt>>(8-priority_rotate))&8'hFF;
+  
+function [7:0] resolv_priority (input [7:0] request);
+  integer i;
+  begin 
+    for (i = 0; i < 8; i = i + 1) begin
+      if (request[i] == 1'b1) begin
+        resolv_priority = 8'b1 << i;
+        i=8;//break
+      end
+    end
+
+    if (i == 8) resolv_priority = 8'b00000000;
+  end  
+endfunction
 
 endmodule
 
