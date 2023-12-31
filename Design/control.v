@@ -268,26 +268,16 @@ module control (
             auto_rotate_mode <= auto_rotate_mode; 
     end
 
-    // setting the value of priority rotate
+   // setting the value of periority rotate
     always@(*) begin
         if (write_ICW1 == 1'b1)
-            priority_rotate <= 3'b111; // no rotaion
-        else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1))// fully nested mode
-            interrupt_vector_address[2:0] <= convert_bit_to_number(acknowledge_interrupt);
+            priority_rotate <= 3'b111; // no rotaion (fully nested)
+        else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1)) //automatic rotation
             priority_rotate <= convert_bit_to_number(acknowledge_interrupt);
-        else if (write_OCW2 == 1'b1) begin
-            case (internal_data_bus[7:5]) //D7:D5
-                // rotate on non_specific EOI command 
-                3'b101:  priority_rotate <= convert_bit_to_number(highest_level_in_service); 
-                // set priority command
-                3'b110:  priority_rotate <= internal_data_bus[2:0];
-                // for synthesis
-                default: priority_rotate <= priority_rotate; 
-            endcase
-        end
+        else if ((write_OCW2 == 1'b1) && (internal_data_bus[7:5]==3'b101)) //rotate on non_specific EOI command
+                3'b101:  priority_rotate <= convert_bit_to_number(highest_level_in_service);
         else   // for synthesis
             priority_rotate <= priority_rotate;  
-    end
-
+     end
 
 endmodule
