@@ -296,4 +296,43 @@ module control (
         end
     end
 
+    // Auto rotatation mode (equal periority devices)
+    always @(*) begin
+        // initially (before configuring OCW1), default: fully nested mode 
+        if (write_ICW1== 1'b1)
+            auto_rotate_mode <= 1'b0;
+        else if (write_OCW2 == 1'b1) begin
+            case(internal_data_bus[7:5]) //D7:D5
+                //rotate in automatic EOI command (set)
+                3'b100:  auto_rotate_mode <= 1'b1;
+                //rotate in automatic EOI command (clear)
+                3'b000:  auto_rotate_mode <= 1'b0;
+                // for synthesis
+                default: auto_rotate_mode <= auto_rotate_mode; 
+            endcase
+        end
+        else  // for synthesis
+            auto_rotate_mode <= auto_rotate_mode; 
+    end
+
+    // setting the value of periority rotate
+    always@(*) begin
+        if (write_ICW1 == 1'b1)
+            priority_rotate <= 3'b111; // no rotaion
+        else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1)) // fully nested mode
+            priority_rotate <= convert_bit_to_number(acknowledge_interrupt);
+        else if (write_OCW2 == 1'b1) begin
+            case (internal_data_bus[7:5]) //D7:D5
+                // rotate on non_specific EOI command 
+                3'b101:  priority_rotate <= convert_bit_to_number(highest_level_in_service); 
+                // set periority command
+                3'b110:  priority_rotate <= internal_data_bus[2:0];
+                // for synthesis
+                default: priority_rotate <= priority_rotate; 
+            endcase
+        end
+        else   // for synthesis
+            priority_rotate <= priority_rotate;  
+    end
+
 endmodule
