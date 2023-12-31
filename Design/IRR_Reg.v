@@ -7,8 +7,8 @@ module IRR(
 );
 
   // Combinational logic for updating IRR
-  always @(interrupt_Requests or ~rst) begin
-    if (~rst) begin
+  always @(interrupt_Requests or clear_IRR) begin
+    if (clear_IRR) begin
       // Reset only the bits that are set in interrupt_Requests
       if (interrupt_Requests[0]) IRR_Output[0] <= 1'b0;
       else if (interrupt_Requests[1]) IRR_Output[1] <= 1'b0;
