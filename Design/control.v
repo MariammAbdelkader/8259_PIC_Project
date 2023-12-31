@@ -12,7 +12,8 @@ module control (
     input write_ICW1, write_ICW2_4,
     input write_OCW1, write_OCW2, write_OCW3,
     input read,
-
+    input[7:0] in_service_reg,
+    
     output out_control_logic_data,
     output [7:0] control_logic_data,
 
@@ -275,7 +276,7 @@ module control (
         else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1)) //automatic rotation
             priority_rotate <= convert_bit_to_number(acknowledge_interrupt);
         else if ((write_OCW2 == 1'b1) && (internal_data_bus[7:5]==3'b101)) //rotate on non_specific EOI command
-             priority_rotate <= convert_bit_to_number(highest_level_in_service);
+             priority_rotate <= convert_bit_to_number(in_service_register);
         else   // for synthesis
             priority_rotate <= priority_rotate;  
      end
