@@ -3,7 +3,7 @@ module control (
     input reset,
     input int_ack, //interrupt ack
     output INT, // interrupt
-    inout SP_EN, //slave_program_n, slave_program_or_enable_buffer
+    input SP_EN, //slave_program_n
     inout [2:0] cascade_io, //cascade bus
 
     // internal bus
@@ -23,7 +23,7 @@ module control (
     output reg [7:0] eoi, //end of interrupt
     output [2:0] priority_rotate,
     output reg latch_in_service,
-    output reg    level_edge_triggered,
+    output reg level_edge_triggered,
     output reg read_reg_en, 
     output reg read_reg_isr_or_irr,
     output[7:0] clear_IRR
@@ -101,32 +101,38 @@ module control (
 
     localparam CTRL_READY = 2'b00;
     //localparam POLL = 2'b01;
-    localparam ACK = 2'b10;
-    //localparam ACK2 = 3'b011;
+    localparam ACK1 = 2'b01;
+    localparam ACK2 = 2'b10;
     //localparam ACK3 = 3'b100;
 
     //control fsm
     //pedge_interrupt_acknowledge -> !int_ack
     //nedge_interrupt_acknowledge -> int_ack
-    always @(*) begin
+    always @(control_state, write_ocw2_reg, int_ack) begin
         case (control_state)
             CTRL_READY: begin
-                if (write_ocw2_reg || !int_ack)
+                if (write_ocw2_reg || int_ack)
                     next_control_state = CTRL_READY;
                 else 
-                    next_control_state = ACK;
+                    next_control_state = ACK1;
             end 
-            ACK: begin
-                if (int_ack)
-                    next_control_state = ACK;
+            ACK1: begin
+                if (!int_ack)
+                    next_control_state = ACK2;
                 else 
+                    next_control_state = ACK1;
+            end
+            ACK2: begin
+                if(int_ack)
+                    next_control_state = ACK2;
+                else
                     next_control_state = CTRL_READY;
             end
             default: next_control_state = CTRL_READY;
         endcase
     end
 
-    always @(*) begin
+    always @(negedge int_ack, posedge write_ocw2_reg, write_ICW1) begin
         if (write_ICW1)
             control_state <= CTRL_READY;
         else
@@ -141,12 +147,12 @@ module control (
         else if (cascade_slave == 1'b0)
             latch_in_service = (control_state == CTRL_READY) & (next_control_state != CTRL_READY);
         else
-            latch_in_service = (control_state == ACK) & (cascade_slave_enable == 1'b1) & (int_ack == 1'b1);
+            latch_in_service = (control_state == ACK2) & (cascade_slave_enable == 1'b1) & (int_ack == 1'b1);
     end
 
     // End of acknowledge sequence
     wire    end_of_ack_seq =  (control_state != CTRL_READY) & (next_control_state == CTRL_READY);
-    wire    end_of_poll_command = (control_state != CTRL_READY) & (next_control_state == CTRL_READY);
+    //wire    end_of_poll_command = (control_state != CTRL_READY) & (next_control_state == CTRL_READY);
 
 
         //...
@@ -154,44 +160,19 @@ module control (
     // ICW 1 initialization
     //
     
-    // A7-A5
+    // A7-A5 & LTIM & call address interval 4 or 8 configureation & SNGL & ICW4
     always @* begin
         if (write_ICW1 == 1'b1)
             interrupt_vector_address[2:0] <= internal_data_bus[7:5];
-        else
-            interrupt_vector_address[2:0] <= interrupt_vector_address[2:0];
-    end
-
-    // LTIM
-    always @* begin
-        if (write_ICW1 == 1'b1)
             level_edge_triggered <= internal_data_bus[3];
-        else
-            level_edge_triggered <= level_edge_triggered;
-    end
-
-    // ADI
-    //call address interval 4 or 8 configureation
-    always @* begin
-        if (write_ICW1 == 1'b1)
             call_address_interval <= internal_data_bus[2];
-        else
-            call_address_interval <= call_address_interval;
-    end
-
-    // SNGL
-    always @* begin
-        if (write_ICW1 == 1'b1)
             single_or_cascade <= internal_data_bus[1];
-        else
-            single_or_cascade <= single_or_cascade;
-    end
-
-    //IC4
-    always @* begin
-        if (write_ICW1 == 1'b1)
             set_icw4 <= internal_data_bus[0];
         else
+            interrupt_vector_address[2:0] <= interrupt_vector_address[2:0];
+            level_edge_triggered <= level_edge_triggered;
+            call_address_interval <= call_address_interval;
+            single_or_cascade <= single_or_cascade;
             set_icw4 <= set_icw4;
     end
 
@@ -204,7 +185,6 @@ module control (
         else if (write_icw2 == 1'b1)
             interrupt_vector_address[10:3] <= internal_data_bus;
         else
-        //maintain current bits
             interrupt_vector_address[10:3] <= interrupt_vector_address[10:3];
     end
 
@@ -223,30 +203,17 @@ module control (
     //
     //ICW 4 initialization
     //
-    // BUF
-    /*always @(*) begin
-        if (reset || write_ICW1)
-            buff_mode_config <= 1'b0;
-        else if (write_icw4 == 1'b1)
-            buff_mode_config <= internal_data_bus[3];
-    end*/
-
-    assign  SP_EN = ~buff_mode_config;
-
-    // M/S
+    // M/S & AEOI
     always @(*) begin
         if (write_ICW1)
             buff_master_or_slave_config <= 1'b0;
-        else if (write_icw4)
-            buff_master_or_slave_config <= internal_data_bus[2];
-    end
-
-    // AEOI
-    always @(*) begin
-        if (write_ICW1)
             auto_eoi_config <= 1'b0;
         else if (write_icw4)
+            buff_master_or_slave_config <= internal_data_bus[2];
             auto_eoi_config <= internal_data_bus[1];
+        else
+            buff_master_or_slave_config= buff_master_or_slave_config;
+            auto_eoi_config = auto_eoi_config;
     end
 
     //Operation Control Word 1
@@ -260,8 +227,6 @@ module control (
             int_mask <= int_mask;
     end
 
-
-
     //Operation Control Word 2
     //incomplete & OCW3 missing
     always @(*) begin
@@ -270,7 +235,7 @@ module control (
         else if (end_of_ack_seq == 1'b1)
             eoi = acknowledge_interrupt;
         else if (write_OCW2) begin
-            casez (internal_data_bus[6:5])
+            case (internal_data_bus[6:5])
                 2'b01:   eoi = highest_level_in_service; 
                 //2'b11:   eoi = num2bit(internal_data_bus[2:0]);
                 default: eoi = 8'b00000000;
