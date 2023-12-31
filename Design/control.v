@@ -25,7 +25,8 @@ module control (
     output reg latch_in_service,
     output reg    level_edge_triggered,
     output reg read_reg_en, 
-    output reg read_reg_isr_or_irr
+    output reg read_reg_isr_or_irr,
+    output[7:0] clear_IRR
 );
     reg single_or_cascade;
     reg set_icw4;
