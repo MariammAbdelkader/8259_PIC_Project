@@ -275,7 +275,7 @@ module control (
         else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1)) //automatic rotation
             priority_rotate <= convert_bit_to_number(acknowledge_interrupt);
         else if ((write_OCW2 == 1'b1) && (internal_data_bus[7:5]==3'b101)) //rotate on non_specific EOI command
-                3'b101:  priority_rotate <= convert_bit_to_number(highest_level_in_service);
+             priority_rotate <= convert_bit_to_number(highest_level_in_service);
         else   // for synthesis
             priority_rotate <= priority_rotate;  
      end
