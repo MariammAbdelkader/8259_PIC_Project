@@ -1,10 +1,11 @@
 module control (
     // external inputs & outputs
-    input reset,
+    //input reset,
     input int_ack, //interrupt ack
     output INT, // interrupt
     input SP_EN, //slave_program_n
-    inout [2:0] cascade_io, //cascade bus
+    input [2:0] cascade_i, //input cascade bus
+    output [2:0] cascade_o, //output cascade bus
 
     // internal bus
     input [7:0] internal_data_bus,
@@ -22,7 +23,7 @@ module control (
     output reg [7:0] int_mask, //interrupt mask
     output reg [7:0] eoi, //end of interrupt
     output [2:0] priority_rotate,
-    output reg latch_in_service,
+    
     output reg level_edge_triggered,
     output reg read_reg_en, 
     output reg read_reg_isr_or_irr,
@@ -30,11 +31,9 @@ module control (
 );
     reg single_or_cascade;
     reg set_icw4;
-    reg buff_mode_config;
-    reg buff_master_or_slave_config;
     reg auto_eoi_config;
     reg auto_rotate_mode;
-    reg   [10:0]  interrupt_vector_address;
+    reg   [7:0]  interrupt_vector_address;
     reg call_address_interval;
     reg   [7:0]   cascade_config;
 
@@ -100,14 +99,12 @@ module control (
     reg [1:0] next_control_state;
 
     localparam CTRL_READY = 2'b00;
-    //localparam POLL = 2'b01;
+    
     localparam ACK1 = 2'b01;
     localparam ACK2 = 2'b10;
-    //localparam ACK3 = 3'b100;
+    
 
     //control fsm
-    //pedge_interrupt_acknowledge -> !int_ack
-    //nedge_interrupt_acknowledge -> int_ack
     always @(control_state, write_ocw2_reg, int_ack) begin
         case (control_state)
             CTRL_READY: begin
@@ -132,22 +129,11 @@ module control (
         endcase
     end
 
-    always @(negedge int_ack, posedge write_ocw2_reg, write_ICW1) begin
+    always @(negedge int_ack, write_ICW1) begin
         if (write_ICW1)
             control_state <= CTRL_READY;
         else
             control_state <= next_control_state;
-    end
-
-    always @* begin
-        if (write_ICW1 == 1'b1)
-            latch_in_service = 1'b0;
-        else if ((control_state == CTRL_READY))
-            latch_in_service = 1'b1;
-        else if (cascade_slave == 1'b0)
-            latch_in_service = (control_state == CTRL_READY) & (next_control_state != CTRL_READY);
-        else
-            latch_in_service = (control_state == ACK2) & (cascade_slave_enable == 1'b1) & (int_ack == 1'b1);
     end
 
     // End of acknowledge sequence
@@ -162,18 +148,20 @@ module control (
     
     // A7-A5 & LTIM & call address interval 4 or 8 configureation & SNGL & ICW4
     always @* begin
-        if (write_ICW1 == 1'b1)
-            interrupt_vector_address[2:0] <= internal_data_bus[7:5];
-            level_edge_triggered <= internal_data_bus[3];
+        if (write_ICW1 == 1'b1) begin
+            
+            level_edge_triggered <= internal_data_bus[3];   //if level:1, edge:0
             call_address_interval <= internal_data_bus[2];
-            single_or_cascade <= internal_data_bus[1];
-            set_icw4 <= internal_data_bus[0];
-        else
-            interrupt_vector_address[2:0] <= interrupt_vector_address[2:0];
+            single_or_cascade <= internal_data_bus[1];      //if single:1, cascade:0
+            set_icw4 <= internal_data_bus[0];               //if icw4 needed:1 , not needed:0
+            end
+        else begin
+            
             level_edge_triggered <= level_edge_triggered;
             call_address_interval <= call_address_interval;
             single_or_cascade <= single_or_cascade;
             set_icw4 <= set_icw4;
+            end
     end
 
     //
@@ -181,11 +169,11 @@ module control (
     //
     always @* begin
         if (write_ICW1 == 1'b1)
-            interrupt_vector_address[10:3] <= 3'b000;
+            interrupt_vector_address[7:3] <= 3'b000;
         else if (write_icw2 == 1'b1)
-            interrupt_vector_address[10:3] <= internal_data_bus;
+            interrupt_vector_address[7:3] <= internal_data_bus[7:3];
         else
-            interrupt_vector_address[10:3] <= interrupt_vector_address[10:3];
+            interrupt_vector_address[7:3] <= interrupt_vector_address[7:3];
     end
 
     //
@@ -206,14 +194,14 @@ module control (
     // M/S & AEOI
     always @(*) begin
         if (write_ICW1)
-            buff_master_or_slave_config <= 1'b0;
+            //buff_master_or_slave_config <= 1'b0;
             auto_eoi_config <= 1'b0;
         else if (write_icw4)
-            buff_master_or_slave_config <= internal_data_bus[2];
+            //buff_master_or_slave_config <= internal_data_bus[2];
             auto_eoi_config <= internal_data_bus[1];
         else
-            buff_master_or_slave_config= buff_master_or_slave_config;
-            auto_eoi_config = auto_eoi_config;
+            //buff_master_or_slave_config= buff_master_or_slave_config;
+            auto_eoi_config <= auto_eoi_config;
     end
 
     //Operation Control Word 1
@@ -232,12 +220,12 @@ module control (
     always @(*) begin
         if (write_ICW1 == 1'b1)
             eoi = 8'b11111111; 
-        else if (end_of_ack_seq == 1'b1)
+        else if (end_of_ack_seq == 1'b1 && auto_eoi_config == 1'b1)
             eoi = acknowledge_interrupt;
         else if (write_OCW2) begin
             case (internal_data_bus[6:5])
                 2'b01:   eoi = highest_level_in_service; 
-                //2'b11:   eoi = num2bit(internal_data_bus[2:0]);
+                2'b11:   eoi = 8'b0000001 << (internal_data_bus[2:0]);
                 default: eoi = 8'b00000000;
             endcase
         end
@@ -280,17 +268,18 @@ module control (
             auto_rotate_mode <= auto_rotate_mode; 
     end
 
-    // setting the value of periority rotate
+    // setting the value of priority rotate
     always@(*) begin
         if (write_ICW1 == 1'b1)
             priority_rotate <= 3'b111; // no rotaion
-        else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1)) // fully nested mode
+        else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1))// fully nested mode
+            interrupt_vector_address[2:0] <= convert_bit_to_number(acknowledge_interrupt);
             priority_rotate <= convert_bit_to_number(acknowledge_interrupt);
         else if (write_OCW2 == 1'b1) begin
             case (internal_data_bus[7:5]) //D7:D5
                 // rotate on non_specific EOI command 
                 3'b101:  priority_rotate <= convert_bit_to_number(highest_level_in_service); 
-                // set periority command
+                // set priority command
                 3'b110:  priority_rotate <= internal_data_bus[2:0];
                 // for synthesis
                 default: priority_rotate <= priority_rotate; 
@@ -299,5 +288,6 @@ module control (
         else   // for synthesis
             priority_rotate <= priority_rotate;  
     end
+
 
 endmodule
