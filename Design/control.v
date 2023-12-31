@@ -6,7 +6,8 @@ module control (
     input SP_EN, //slave_program_n
     input [2:0] cascade_i, //input cascade bus
     output [2:0] cascade_o, //output cascade bus
-
+    output reg interrupt_to_cpu,
+    input  interrupt_acknowledge_n,
     // internal bus
     input [7:0] internal_data_bus,
     input write_ICW1, write_ICW2_4,
@@ -18,17 +19,16 @@ module control (
     output [7:0] control_logic_data,
 
     //signals from interrupt
-    input [7:0] highest_level_in_service,
+    input [7:0] interrupt,
 
     //interrupt control signals
     output reg [7:0] int_mask, //interrupt mask
     output reg [7:0] eoi, //end of interrupt
     output [2:0] priority_rotate,
-    
     output reg level_edge_triggered,
     output reg read_reg_en, 
     output reg read_reg_isr_or_irr,
-    output[7:0] clear_IRR
+    output [7:0] clear_IRR
 );
     reg single_or_cascade;
     reg set_icw4;
@@ -169,10 +169,12 @@ module control (
     // ICW 2 initialization
     //
     always @* begin
-        if (write_ICW1 == 1'b1)
-            interrupt_vector_address[7:3] <= 3'b000;
-        else if (write_icw2 == 1'b1)
+        if (write_ICW1 == 1'b1) begin
+            interrupt_vector_address[7:3] <= 5'b000;
+        end
+        else if (write_icw2 == 1'b1) begin
             interrupt_vector_address[7:3] <= internal_data_bus[7:3];
+        end
         else
             interrupt_vector_address[7:3] <= interrupt_vector_address[7:3];
     end
@@ -192,16 +194,13 @@ module control (
     //
     //ICW 4 initialization
     //
-    // M/S & AEOI
+    // AEOI
     always @(*) begin
         if (write_ICW1)
-            //buff_master_or_slave_config <= 1'b0;
             auto_eoi_config <= 1'b0;
         else if (write_icw4)
-            //buff_master_or_slave_config <= internal_data_bus[2];
             auto_eoi_config <= internal_data_bus[1];
         else
-            //buff_master_or_slave_config= buff_master_or_slave_config;
             auto_eoi_config <= auto_eoi_config;
     end
 
@@ -217,7 +216,7 @@ module control (
     end
 
     //Operation Control Word 2
-    //incomplete & OCW3 missing
+    
     always @(*) begin
         if (write_ICW1 == 1'b1)
             eoi = 8'b11111111; 
@@ -225,7 +224,7 @@ module control (
             eoi = acknowledge_interrupt;
         else if (write_OCW2) begin
             case (internal_data_bus[6:5])
-                2'b01:   eoi = highest_level_in_service; 
+                //2'b01:   eoi = highest_level_in_service; 
                 2'b11:   eoi = 8'b0000001 << (internal_data_bus[2:0]);
                 default: eoi = 8'b00000000;
             endcase
@@ -233,7 +232,7 @@ module control (
         else
             eoi = 8'b00000000;
     end
-
+    //OCW3
     // RR/RIS
     always @(*) begin
         if (write_ICW1 == 1'b1) begin
@@ -271,14 +270,104 @@ module control (
 
    // setting the value of periority rotate
     always@(*) begin
-        if (write_ICW1 == 1'b1)
+        if (write_ICW1 == 1'b1) begin
             priority_rotate <= 3'b111; // no rotaion (fully nested)
-        else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1)) //automatic rotation
+            interrupt_vector_address[2:0] <=  3'b111;
+        end
+        else if ((auto_rotate_mode == 1'b1) && (end_of_ack_seq == 1'b1)) begin //automatic rotation
             priority_rotate <= convert_bit_to_number(acknowledge_interrupt);
-        else if ((write_OCW2 == 1'b1) && (internal_data_bus[7:5]==3'b101)) //rotate on non_specific EOI command
+            interrupt_vector_address[2:0] <= convert_bit_to_number(acknowledge_interrupt);
+        end
+        else if ((write_OCW2 == 1'b1) && (internal_data_bus[7:5]==3'b101)) begin //rotate on non_specific EOI command
              priority_rotate <= convert_bit_to_number(in_service_register);
-        else   // for synthesis
-            priority_rotate <= priority_rotate;  
+             interrupt_vector_address[2:0] <= convert_bit_to_number(in_service_register);
+        end else begin  // for synthesis
+            priority_rotate <= priority_rotate;
+            interrupt_vector_address[2:0] <= interrupt_vector_address[2:0];
+        end
      end
+
+     // Interrupt control signals
+    //
+    // INT
+    always @(*) begin
+        if (write_ICW1 == 1'b1)
+            interrupt_to_cpu <= 1'b0;
+        else if (interrupt != 8'b00000000)
+            interrupt_to_cpu <= 1'b1;
+        else if (end_of_ack_seq == 1'b1)
+            interrupt_to_cpu <= 1'b0;
+        else
+            interrupt_to_cpu <= interrupt_to_cpu;
+    end
+
+    // freeze
+    always @(*) begin
+        if (next_control_state == CTRL_READY)
+            freeze <= 1'b0;
+        else
+            freeze <= 1'b1;
+    end
+
+    // clear_IRR
+    always@(*) begin
+        if (write_ICW1 == 1'b1)
+            clear_IRR = 8'b11111111;
+        else if (cascade_slave == 1'b0 && (!((control_state == CTRL_READY) & (next_control_state != CTRL_READY))))
+            clear_IRR = 8'b00000000;
+        else
+            clear_IRR = interrupt;//ns2al mariam
+    end
+
+    // interrupt buffer
+    always @(*) begin
+        if (write_ICW1 == 1'b1)
+            acknowledge_interrupt <= 8'b00000000;
+        else if (end_of_ack_seq)
+            acknowledge_interrupt <= 8'b00000000;
+        else
+            acknowledge_interrupt <= interrupt;
+    end
+
+    always@(*) begin
+        if (interrupt_acknowledge_n == 1'b0) begin
+            // Acknowledge
+            case (control_state)
+                CTRL_READY: begin
+                    out_control_logic_data = 1'b0;
+                    control_logic_data     = 8'b00000000;
+                end
+                ACK1: begin
+                    out_control_logic_data = 1'b0;
+                    control_logic_data     = 8'b0000;
+                end
+                ACK2: begin
+                    if (cascade_output_ack_2_3 == 1'b1) begin
+                        out_control_logic_data = 1'b1;
+
+                        /*if (cascade_slave == 1'b1)
+                            control_logic_data[2:0] = bit2num(interrupt_when_ack1);
+                        else
+                            control_logic_data[2:0] = bit2num(acknowledge_interrupt);*/
+                        control_logic_data = interrupt_vector_address;
+                        
+                    end
+                    else begin
+                        out_control_logic_data = 1'b0;
+                        control_logic_data     = 8'b00000000;
+                    end
+                end
+                default: begin
+                    out_control_logic_data = 1'b0;
+                    control_logic_data     = 8'b00000000;
+                end
+            endcase
+        end
+        else begin
+            // Nothing
+            out_control_logic_data = 1'b0;
+            control_logic_data     = 8'b00000000;
+        end
+    end
 
 endmodule
