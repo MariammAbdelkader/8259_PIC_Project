@@ -1,7 +1,8 @@
 module IRR(
-  // inputs from control logic.....
   input wire [7:0] interrupt_Requests,
-  input wire rst,
+  //inputs from control logic
+  input[7:0] clear_IRR,
+  //input wire rst,
   output reg [7:0] IRR_Output
 );
 
