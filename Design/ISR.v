@@ -11,9 +11,8 @@ module PIC_ISR (
   // output
   inout [7:0] in_service_register_wire                // Output for in-service register
 );
-  reg [7:0] in_service_register;
-  reg [7:0] isr_reg;  // Internal register to store the in-service interrupt
-  assign in_service_register_wire = in_service_register;
+ reg [7:0] isr_reg;  // Internal register to store the in-service interrupt
+assign in_service_register = isr_reg;
   //
   // Asynchronous set logic with priority and mask handling
   //
@@ -41,8 +40,8 @@ module PIC_ISR (
   end
 
   // Output the ISR
-  always @* begin
+  /*always @* begin
     in_service_register <= isr_reg;  // Output in-service register
-  end
+  end*/
 
 endmodule
