@@ -35,7 +35,7 @@ module PIC_ISR (
     //
     if (eoi)
     begin
-      isr_reg =8'b00000000;  // Reset isr_reg when EOI is true
+      isr_reg =interrupt_request & ~ eoi;  // Reset isr_reg bit when EOI is true
     end
     
   end
