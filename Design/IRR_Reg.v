@@ -2,16 +2,17 @@ module IRR(
   input wire [7:0] interrupt_Requests,
   input [7:0] clear_IRR,
   input freeze,
-  output reg [7:0] IRR_Output
+  inout reg [7:0] IRR_Output_wire
 );
 
 // to store the output after the change of the clear signal
-reg[7:0] store_request;
-assign store_request=interrupt_Requests;
+reg [7:0] store_request;
+reg [7:0] IRR_Output;
+assign IRR_Output_wire = IRR_Output;
   
   // Combinational logic for updating IRR
-  always @(*) begin
-
+always @(*) begin
+    store_request=interrupt_Requests;
     // If freeze is active, maintain the current IRR state
     if (freeze) begin
      // no operation

@@ -9,11 +9,11 @@ module PIC_ISR (
   input wire [7:0]  eoi,                              // Input for End of Interrupt (EOI) - It resets the bit of ISR
   
   // output
-  output reg [7:0] in_service_register                // Output for in-service register
+  inout [7:0] in_service_register_wire                // Output for in-service register
 );
-
+  reg [7:0] in_service_register;
   reg [7:0] isr_reg;  // Internal register to store the in-service interrupt
-  
+  assign in_service_register_wire = in_service_register;
   //
   // Asynchronous set logic with priority and mask handling
   //

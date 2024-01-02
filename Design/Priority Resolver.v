@@ -13,11 +13,13 @@ module Priority_Resolver (
   input  [2:0]  priority_rotate, //3-bit input representing the priority rotation value.
   
   // Outputs
-  output reg [7:0]  interrupt_vector // 8-bit output representing the resolved interrupt.
+  inout [7:0]  interrupt_vector_wire // 8-bit output representing the resolved interrupt.
 );
+  reg [7:0]  interrupt_vector;
+assign interrupt_vector_wire = interrupt_vector;
   // Masked flags
-  reg [7:0]  masked_irr;
-  reg [7:0]  masked_isr ;
+  wire [7:0]  masked_irr;
+  wire [7:0]  masked_isr ;
   //Masking Disabled Interrupts:
   assign masked_irr= irr & ~imr;   //filters out disabled interrupts from the IRR
   assign masked_isr = isr & ~ imr;    //filters out disabled interrupts from the ISR
@@ -33,13 +35,13 @@ module Priority_Resolver (
   assign rotated_irr = (masked_irr >> priority_rotate)|(masked_irr <<(8-priority_rotate))& 8'hFF;
   // Rotate in_service 
   always @* begin
-  assign rotated_isr= (masked_isr >> priority_rotate)|(masked_isr <<(8-priority_rotate))& 8'hFF;
+  	rotated_isr= (masked_isr >> priority_rotate)|(masked_isr <<(8-priority_rotate))& 8'hFF;
     
 
 
   // Priority mask calculation
   //based on the heighest prioity bit set in rotated_isr
-  assign priority_mask = ( rotated_isr[0]) ? 8'b00000000 :
+  	priority_mask = ( rotated_isr[0]) ? 8'b00000000 :
                          ( rotated_isr[1]) ? 8'b00000001 :
                          ( rotated_isr[2]) ? 8'b00000011 :
                          ( rotated_isr[3]) ? 8'b00000111 :

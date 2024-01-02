@@ -2,7 +2,6 @@ module control (
     // external inputs & outputs
     //input reset,
     input int_ack, //interrupt ack
-    output INT, // interrupt
     input SP_EN, //slave_program_n
     input [2:0] cascade_i, //input cascade bus
     output reg[2:0] cascade_o, //output cascade bus
@@ -13,23 +12,26 @@ module control (
     input write_OCW1, write_OCW2, write_OCW3,
     input read,
     input[7:0] in_service_reg, 
-    output reg freeze,
+    inout freeze_wire,
     
-    output reg out_control_logic_data,
-    output reg [7:0] control_logic_data,
+    inout out_control_logic_data_wire,
+    inout [7:0] control_logic_data_wire,
 
     //signals from interrupt
     input [7:0] interrupt,
 
     //interrupt control signals
-    output reg [7:0] int_mask, //interrupt mask
+    inout [7:0] int_mask_wire, //interrupt mask
     output reg [7:0] eoi, //end of interrupt
-    output reg [2:0] priority_rotate,
-    output reg level_edge_triggered,
-    output reg read_reg_en, 
-    output reg read_reg_isr_or_irr,
-    output reg [7:0] clear_IRR
+    inout [2:0] priority_rotate_wire,
+    inout level_edge_triggered_wire,
+    inout read_reg_en_wire, 
+    inout read_reg_isr_or_irr_wire,
+    inout [7:0] clear_IRR_wire
 );
+
+    reg out_control_logic_data;
+    reg [7:0] control_logic_data;
     reg single_or_cascade;
     reg set_icw4;
     reg auto_eoi_config;
@@ -46,7 +48,23 @@ module control (
 
     reg [7:0] acknowledge_interrupt;
 
+    reg freeze;
+    reg [7:0] int_mask;
+    reg [7:0] priority_rotate;
+    reg level_edge_triggered;
+    reg read_reg_en;
+    reg read_reg_isr_or_irr;
+    reg [7:0] clear_IRR;
 
+    assign out_control_logic_data_wire= out_control_logic_data;
+    assign control_logic_data_wire = control_logic_data;
+    assign freeze_wire = freeze;
+    assign int_mask_wire = int_mask;
+    assign priority_rotate_wire = priority_rotate;
+    assign level_edge_triggered_wire = level_edge_triggered;
+    assign read_reg_en_wire = read_reg_en;
+    assign read_reg_isr_or_irr_wire = read_reg_isr_or_irr;
+    assign clear_IRR_wire = clear_IRR;
 
     reg [1:0] command_state;
     reg [1:0] next_command_state;

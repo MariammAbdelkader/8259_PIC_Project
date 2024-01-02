@@ -47,18 +47,19 @@ module Top_module(
     //
     // Interrupt (Service) Control Logic
     
-            reg  out_control_logic_data;
-       reg [7:0]   control_logic_data;
-       reg       level_edge_triggered;
-    reg      read_reg_en;
-        reg     read_reg_isr_or_irr;
+            wire  out_control_logic_data;
+       wire [7:0]   control_logic_data;
+       wire       level_edge_triggered;
+    wire      read_reg_en;
+        wire     read_reg_isr_or_irr;
        reg[7:0]   interrupt;
-      reg[7:0]   int_mask ;
+      wire [7:0]   int_mask ;
      wire [7:0]   eoi;
-      reg [2:0]   priority_rotate;
-      reg         freeze;
+      wire [2:0]   priority_rotate;
+      wire         freeze;
   
-      reg [7:0]   clear_IRR;
+      wire [7:0]   clear_IRR;
+	wire [7:0]in_service_register ;
 
  control u_Control_Logic (
         // External input/output
@@ -71,38 +72,38 @@ module Top_module(
         .interrupt_to_cpu                   (interrupt_to_cpu),
 
         // Internal bus
-        . internal_bus                 (internal_bus),
-        . write_ICW_1      ( write_ICW_1),
+        . internal_data_bus                 (internal_bus),
+        . write_ICW1      ( write_ICW_1),
         . write_ICW2_4     ( write_ICW2_4),
         . write_OCW1     ( write_OCW1),
         . write_OCW2    ( write_OCW2),
         .write_OCW3    (write_OCW3),
-
+	.in_service_reg		(in_service_register),
         .read                               (read),
-        .out_control_logic_data             (out_control_logic_data),
-        .control_logic_data                 (control_logic_data),
+        .out_control_logic_data_wire             (out_control_logic_data),
+        .control_logic_data_wire                 (control_logic_data),
 
         // Registers to interrupt detecting logics
-        .level_edge_triggered    (level_edge_triggered),
+        .level_edge_triggered_wire    (level_edge_triggered),
         // Registers to Read logics
-        .read_reg_en               (read_reg_en),
-        .read_reg_isr_or_irr           (read_reg_isr_or_irr),
+        .read_reg_en_wire               (read_reg_en),
+        .read_reg_isr_or_irr_wire           (read_reg_isr_or_irr),
 
         // Signals from interrupt detectiong logics
         .interrupt                          (interrupt),
 
         // Interrupt control signals
-        .int_mask                      (int_mask ),
+        .int_mask_wire                      (int_mask ),
         . eoi                  ( eoi),
-        .priority_rotate                    (priority_rotate),
-        .freeze                             (freeze),
-        .clear_IRR           (clear_IRR)
+        .priority_rotate_wire                    (priority_rotate),
+        .freeze_wire                             (freeze),
+        .clear_IRR_wire           (clear_IRR)
     );
 
     //
     // Interrupt Request
     //
-   reg  [7:0]   IRR_Output;
+   wire  [7:0]   IRR_Output;
 
     IRR u_Interrupt_Request (
         // Inputs from control logic
@@ -114,13 +115,12 @@ module Top_module(
         .interrupt_Requests              (interrupt_Requests),
 
         // Outputs
-        .IRR_Output         (IRR_Output)
+        .IRR_Output_wire         (IRR_Output)
     );
 
     //
     // Priority Resolver
-     reg [7:0]in_service_register ;
- reg [7:0] interrupt_vector;
+ wire [7:0] interrupt_vector;
 
    Priority_Resolver u_Priority_Resolver (
 
@@ -137,7 +137,7 @@ module Top_module(
 
   // Outputs
 
-  .interrupt_vector(interrupt_vector)
+  .interrupt_vector_wire(interrupt_vector)
 
 );
 
@@ -150,7 +150,8 @@ module Top_module(
         .interrupt_request                       (interrupt_vector),
         .eoi                   (eoi),
         // Outputs
-        .in_service_register                (in_service_register)
+        .in_service_register_wire                (in_service_register),
+	.interrupt_mask		(int_mask)
     );
 
     //
