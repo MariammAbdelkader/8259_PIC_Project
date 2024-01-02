@@ -32,7 +32,7 @@ module ControlBus (
 
 
     // Generate write request flags
-    assign write_ICW1 = write & ~A1 & internal_bus[4];
+    assign write_ICW_1 = write & ~A1 & internal_bus[4];
     assign write_ICW2_4 = write & A1;
     assign write_OCW1 = write & A1;
     assign write_OCW2 = write & ~A1 & ~internal_bus[4] & ~internal_bus[3];
