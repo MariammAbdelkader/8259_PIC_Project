@@ -431,7 +431,7 @@ always@ (single_or_cascade) begin
     end
 
 always @* begin
-       if (cascade_slave == 1'b1) //not operating as slave
+       if (cascade_slave == 1'b1) 
             cascade_o <= 3'b000;
         else if ((control_state != ACK1) && (control_state != ACK2)) //NO ACK
             cascade_o <= 3'b000;
