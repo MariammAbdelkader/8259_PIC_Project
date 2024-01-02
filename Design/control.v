@@ -5,18 +5,18 @@ module control (
     output INT, // interrupt
     input SP_EN, //slave_program_n
     input [2:0] cascade_i, //input cascade bus
-    output [2:0] cascade_o, //output cascade bus
+    output reg[2:0] cascade_o, //output cascade bus
     output reg interrupt_to_cpu,
-    input  interrupt_acknowledge_n,
     // internal bus
     input [7:0] internal_data_bus,
     input write_ICW1, write_ICW2_4,
     input write_OCW1, write_OCW2, write_OCW3,
     input read,
-    input[7:0] in_service_reg,
+    input[7:0] in_service_reg, 
+    output reg freeze,
     
-    output out_control_logic_data,
-    output [7:0] control_logic_data,
+    output reg out_control_logic_data,
+    output reg [7:0] control_logic_data,
 
     //signals from interrupt
     input [7:0] interrupt,
@@ -24,11 +24,11 @@ module control (
     //interrupt control signals
     output reg [7:0] int_mask, //interrupt mask
     output reg [7:0] eoi, //end of interrupt
-    output [2:0] priority_rotate,
+    output reg [2:0] priority_rotate,
     output reg level_edge_triggered,
     output reg read_reg_en, 
     output reg read_reg_isr_or_irr,
-    output [7:0] clear_IRR
+    output reg [7:0] clear_IRR
 );
     reg single_or_cascade;
     reg set_icw4;
@@ -37,11 +37,14 @@ module control (
     reg   [7:0]  interrupt_vector_address;
     reg call_address_interval;
     reg   [7:0]   cascade_config;
+    reg cascade_slave_ON;
+
 
     reg cascade_slave;
-    reg cascade_slave_enable;
+  
+    reg   cascade_ACK_2_out ;
 
-    wire [7:0] acknowledge_interrupt;
+    reg [7:0] acknowledge_interrupt;
 
 
 
@@ -182,11 +185,12 @@ module control (
     //
     // ICW 3
     //
-    always @* begin
-        if (write_ICW1 == 1'b1)
+   always @(write_icw3,write_ICW1) begin
+
+ if (write_ICW1 == 1'b1)
             cascade_config <= 8'b00000000;
         else if (write_icw3 == 1'b1)
-            cascade_config <= internal_data_bus;
+          cascade_config <= internal_data_bus; //read ID
         else
             cascade_config <= cascade_config;
     end
@@ -279,8 +283,8 @@ module control (
             interrupt_vector_address[2:0] <= convert_bit_to_number(acknowledge_interrupt);
         end
         else if ((write_OCW2 == 1'b1) && (internal_data_bus[7:5]==3'b101)) begin //rotate on non_specific EOI command
-             priority_rotate <= convert_bit_to_number(in_service_register);
-             interrupt_vector_address[2:0] <= convert_bit_to_number(in_service_register);
+             priority_rotate <= convert_bit_to_number(in_service_reg);
+             interrupt_vector_address[2:0] <= convert_bit_to_number(in_service_reg);
         end else begin  // for synthesis
             priority_rotate <= priority_rotate;
             interrupt_vector_address[2:0] <= interrupt_vector_address[2:0];
@@ -330,7 +334,7 @@ module control (
     end
 
     always@(*) begin
-        if (interrupt_acknowledge_n == 1'b0) begin
+        if (int_ack == 1'b0) begin
             // Acknowledge
             case (control_state)
                 CTRL_READY: begin
@@ -342,7 +346,7 @@ module control (
                     control_logic_data     = 8'b0000;
                 end
                 ACK2: begin
-                    if (cascade_output_ack_2_3 == 1'b1) begin
+                    if (  cascade_ACK_2_out  == 1'b1) begin
                         out_control_logic_data = 1'b1;
 
                         /*if (cascade_slave == 1'b1)
@@ -368,6 +372,55 @@ module control (
             out_control_logic_data = 1'b0;
             control_logic_data     = 8'b00000000;
         end
+    end
+
+// SNGL
+    always @(write_ICW1) begin  
+       if (write_ICW1 == 1'b1)
+            single_or_cascade  <= internal_data_bus[1];
+        else
+          single_or_cascade <= single_or_cascade; 
+    end
+
+always@ (single_or_cascade) begin
+        if (single_or_cascade == 1'b1)
+            cascade_slave = 1'b0;
+        else
+            cascade_slave = !(SP_EN);
+    end
+
+ always@* begin
+        if (cascade_slave == 1'b0)
+            cascade_slave_ON = 1'b0;
+        else if (cascade_config[2:0] != cascade_i) //work as comparator
+            cascade_slave_ON = 1'b0; 
+        else
+            cascade_slave_ON = 1'b1; //enable on match
+    end
+
+ wire    interrupt_from_slave_device = (acknowledge_interrupt & cascade_config) != 8'b00000000;
+
+   // output ACK2 
+    always@* begin
+        if (single_or_cascade == 1'b1)
+            cascade_ACK_2_out = 1'b1;
+        else if (cascade_slave_ON == 1'b1)
+             cascade_ACK_2_out = 1'b1;
+        else if ((cascade_slave == 1'b0) && (interrupt_from_slave_device == 1'b0))
+            cascade_ACK_2_out = 1'b1;
+        else
+             cascade_ACK_2_out = 1'b0;
+    end
+
+always @* begin
+       if (cascade_slave == 1'b1) //not operating as slave
+            cascade_o <= 3'b000;
+        else if ((control_state != ACK1) && (control_state != ACK2)) //NO ACK
+            cascade_o <= 3'b000;
+        else if (interrupt_from_slave_device == 1'b0)
+            cascade_o <= 3'b000;
+        else
+            cascade_o <= convert_bit_to_number(acknowledge_interrupt);
     end
 
 function[2:0] convert_bit_to_number (input [7:0] INPUT);
