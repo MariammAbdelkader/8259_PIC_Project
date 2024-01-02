@@ -32,16 +32,18 @@ module ControlBus (
 
 
     // Generate write request flags
-    assign write_ICW_1 = write & ~A1 & internal_bus[4];
-    assign write_ICW2_4 = write & A1;
-    assign write_OCW1 = write & A1;
-    assign write_OCW2 = write & ~A1 & ~internal_bus[4] & ~internal_bus[3];
-    assign write_OCW3 = write & ~A1 & ~internal_bus[4] & internal_bus[3];
+    assign write_ICW_1 = (~wr_enable & ~CS & ~A1 & internal_bus[4])? 1: Z ;   
+
+    assign write_ICW2_4 = write & A1? 1'b1 : 1'bZ;
+    assign write_OCW1 = write & A1? 1'b1 : 1'bZ;
+    
+    assign write_OCW2 = write & ~A1 & ~internal_bus[4] & ~internal_bus[3]? 1'b1 :1'bZ;
+    assign write_OCW3 = write & ~A1 & ~internal_bus[4] & internal_bus[3]? 1'b1 : 1'bZ;
 
     //
     // Read Control
     //
-    assign read = ~rd_enable & ~CS;
+    assign read = ~rd_enable & ~CS? 1'b1 : 1'bZ;
 
 endmodule
 
